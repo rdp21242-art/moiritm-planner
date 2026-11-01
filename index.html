@@ -38,6 +38,10 @@ button,input{font:inherit}button{cursor:pointer;color:inherit;border:0}
 .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.stat{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px}.stat .big{font-size:25px;font-weight:750;letter-spacing:-.04em}.stat .label{font-size:12px;color:var(--muted);margin-top:3px}
 .bottom-nav{position:fixed;bottom:0;left:0;right:0;padding:9px 12px calc(9px + env(safe-area-inset-bottom));background:rgba(16,17,20,.94);backdrop-filter:blur(18px);border-top:1px solid var(--line);display:flex;justify-content:center;z-index:10}.nav-inner{width:100%;max-width:560px;display:grid;grid-template-columns:repeat(4,1fr);gap:5px}.nav-btn{background:transparent;color:var(--muted);border-radius:12px;padding:8px 2px;font-size:11px;display:flex;flex-direction:column;gap:4px;align-items:center}.nav-btn .ico{font-size:19px}.nav-btn.active{color:var(--accent);background:#22251d}
 .edit-task{background:var(--panel2);border:1px solid var(--line);color:var(--muted);border-radius:9px;padding:6px 8px;font-size:12px;white-space:nowrap}.action{background:var(--accent);color:var(--accentText);font-weight:750;border-radius:12px;padding:12px 15px}.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:11px 13px}.button-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.note{color:var(--muted);font-size:12px;line-height:1.5;margin-top:12px}.hidden{display:none!important}.footer{color:#666a75;text-align:center;font-size:11px;padding:18px 0}
+.sync-status{font-size:11px;color:var(--muted);text-align:right;margin-top:4px;min-height:16px}
+.sync-status.ok{color:#8fd48f}.sync-status.err{color:#e88}.sync-status.busy{color:var(--blue)}
+.sync-box{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;margin-top:12px}
+.sync-box .field{margin:8px 0}
 @media(min-width:600px){.wrap{padding:28px 24px}.hero h1{font-size:34px}.day-strip{gap:9px}.day{padding:13px 4px}.card{padding:18px}}
 </style>
 </head>
@@ -46,7 +50,7 @@ button,input{font:inherit}button{cursor:pointer;color:inherit;border:0}
 <header class="top"><div><div class="eyebrow">Личный планер</div><div class="brand">Мой ритм<span style="color:var(--accent)">.</span></div></div><div class="date" id="todayLabel"></div></header>
 <section class="hero"><div class="eyebrow" id="heroEyebrow">ПЛАН НА СЕГОДНЯ</div><h1 id="heroTitle">Спокойный ритм,<br>без гонки.</h1><p id="heroText">Одно главное дело — уже хороший день.</p><div class="hero-row"><div class="progress"><span id="progressBar"></span></div><div class="progress-label" id="progressLabel">0 из 0 дел</div></div></section>
 <div class="tabs" id="dayTabs"><button class="tab active" data-filter="all">Все</button><button class="tab" data-filter="hobby">Хобби</button><button class="tab" data-filter="home">Дом</button><button class="tab" data-filter="family">Семья</button></div>
-<main id="main"></main><div class="footer">Твои планы · хранятся на этом устройстве</div>
+<main id="main"></main><div class="footer">Твои планы · синхронизация с облаком</div>
 </div>
 <div id="modalRoot"></div>
 <nav class="bottom-nav"><div class="nav-inner">
@@ -58,26 +62,39 @@ button,input{font:inherit}button{cursor:pointer;color:inherit;border:0}
 <script>
 const DAYS=['Воскресенье','Понедельник','Вторник','Среда','Четверг','Пятница','Суббота'];
 const SHORT=['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+const SYNC_URL='https://moiritm-sync.rdp21242.workers.dev';
 const schedule={
 0:{title:'Дом, аквариум и личное время',text:'Спокойно подготовься к новой неделе.',tasks:[
 ['09:00','Завтрак и спокойное утро','home','Без спешки'],['10:00','Уборка, стирка и покупки','home','Основные домашние дела'],['12:00','Обед и отдых','family','Пауза между делами'],['13:00','Обслуживание аквариума','home','Ориентир: 60–90 минут'],['14:30','Баскетбол · броски','sport','30 минут на свежем воздухе'],['15:00','Свободное хобби','hobby','3D-печать, гитара или коктейли'],['17:00','Подготовиться к понедельнику','home','Коротко проверить планы'],['19:30','Прогулка с собакой','family','Ориентир — 20–30 минут']]},
 1:{title:'Бассейн и день для семьи',text:'До 18:00 — семья и совместные планы. Никаких обязательных проектов.',tasks:[
 ['Утро','Бассейн с женой','family','Главный план дня'],['После бассейна','Время вместе','family','Завтрак, прогулка, поездки или отдых'],['До 18:00','Семейные дела и отдых','family','Личные проекты не планируем'],['После 18:00','Свободный вечер','rest','Хобби — только если хочется']]},
 2:{title:'3D-печать и Ozon',text:'Продвинь магазин одним конкретным шагом.',tasks:[
-['17:00','Перекус и переключение','rest','20 минут после работы'],['17:20','3D-печать и Ozon','hobby','Карточка товара, заказ, модель или себестоимость'],['19:00','Закончить дела и подготовиться','home','Сохранить результат, убрать место'],['19:30','Прогулка с собакой','family','Обычно вместе с женой · 20–30 минут']]},
+['17:00','Перекус и переключение','rest','20 минут после работы'],['17:15','Домашние дела','home','Одно дело из списка'],['17:30','3D-печать и Ozon','hobby','Карточка товара, заказ, модель или себестоимость'],['19:00','Закончить дела и подготовиться','home','Сохранить результат, убрать место'],['19:30','Прогулка с собакой','family','Обычно вместе с женой · 20–30 минут']]},
 3:{title:'Баскетбол и свободный вечер',text:'Короткая тренировка рядом с домом — без долгой подготовки.',tasks:[
-['17:00','Перекус и переключение','rest','После работы'],['17:30','Баскетбол · броски','sport','5 минут разминки, 20 минут бросков, 5 минут штрафных'],['18:00','Гитара или свободное время','hobby','По желанию, без обязательств'],['19:30','Прогулка с собакой','family','Ориентир — 20–30 минут']]},
+['17:00','Перекус и переключение','rest','После работы'],['17:15','Домашние дела','home','Одно дело из списка'],['17:30','Баскетбол · броски','sport','5 минут разминки, 20 минут бросков, 5 минут штрафных'],['18:00','Гитара или свободное время','hobby','По желанию, без обязательств'],['19:30','Прогулка с собакой','family','Ориентир — 20–30 минут']]},
 4:{title:'Home Assistant',text:'Одна техническая задача за сессию. Скалодром пока остаётся резервом.',tasks:[
-['17:00','Перекус и переключение','rest','После работы'],['17:20','Home Assistant','hobby','Одна автоматизация, интеграция или настройка'],['19:00','Завершить занятие','home','Записать следующий шаг'],['19:30','Прогулка с собакой','family','Ориентир — 20–30 минут']]},
+['17:00','Перекус и переключение','rest','После работы'],['17:15','Домашние дела','home','Одно дело из списка'],['17:30','Home Assistant','hobby','Одна автоматизация, интеграция или настройка'],['19:00','Завершить занятие','home','Записать следующий шаг'],['19:30','Прогулка с собакой','family','Ориентир — 20–30 минут']]},
 5:{title:'Гитара и лёгкие дела',text:'Не превращай пятницу в ещё один рабочий день.',tasks:[
-['17:00','Перекус и переключение','rest','После работы'],['17:20','Гитара','hobby','20–30 минут практики'],['18:00','Свободное время или мелкие дела','home','Только если есть силы'],['19:30','Прогулка с собакой','family','Ориентир — 20–30 минут']]},
+['17:00','Перекус и переключение','rest','После работы'],['17:15','Домашние дела','home','Одно дело из списка'],['17:30','Гитара','hobby','20–30 минут практики'],['18:00','Свободное время или мелкие дела','home','Только если есть силы'],['19:30','Прогулка с собакой','family','Ориентир — 20–30 минут']]},
 6:{title:'Рабочий день и лёгкий вечер',text:'После работы — отдых. Баскетбол только если есть силы.',tasks:[
-['17:00','Перекус и переключение','rest','После работы'],['17:30','Баскетбол · по желанию','sport','30 минут, если погода и силы позволяют'],['18:15','Свободный вечер','rest','Необязательное хобби — по настроению'],['19:30','Прогулка с собакой','family','Ориентир — 20–30 минут']]}
+['17:00','Перекус и переключение','rest','После работы'],['17:15','Домашние дела','home','Одно дело из списка'],['17:30','Баскетбол · по желанию','sport','30 минут, если погода и силы позволяют'],['18:15','Свободный вечер','rest','Необязательное хобби — по настроению'],['19:30','Прогулка с собакой','family','Ориентир — 20–30 минут']]}
 };
 try{
   const savedSchedule=JSON.parse(localStorage.getItem('moiritm_custom_schedule_v1')||'null');
   if(savedSchedule){Object.keys(schedule).forEach(k=>{if(savedSchedule[k]&&Array.isArray(savedSchedule[k].tasks))schedule[k]=savedSchedule[k]})}
 }catch(e){}
+// Ensure "Домашние дела" exists after snack for workdays (2-6) even if custom schedule was saved earlier
+(function ensureHomeTasks(){
+  for(let d=2;d<=6;d++){
+    const tasks=schedule[d].tasks;
+    const hasHome=tasks.some(t=>t[1]==='Домашние дела');
+    if(!hasHome){
+      const snackIdx=tasks.findIndex(t=>String(t[1]).toLowerCase().includes('перекус'));
+      const insertAt=snackIdx>=0?snackIdx+1:1;
+      tasks.splice(insertAt,0,['17:15','Домашние дела','home','Одно дело из списка']);
+    }
+  }
+})();
 const habitGroups=[
 {title:'Дом и быт',items:[['Покупки и подготовка еды','В воскресенье или по пути домой'],['Уборка и стирка','Основной блок — воскресенье'],['Обслуживание аквариума','Воскресенье · 60–90 минут']]},
 {title:'Хобби',items:[['Продвинул 3D-печать / Ozon','Одна конкретная задача'],['Занялся Home Assistant или скалодромом','Скалодром пока резервный слот'],['Гитара 2–3 раза','По 20–30 минут'],['Баскетбол хотя бы 2 раза','Короткие блоки по 30 минут'],['Коктейли или другое хобби','Один свободный блок по желанию']]},
@@ -85,6 +102,17 @@ const habitGroups=[
 ];
 let page='today',filter='all',selectedDay=new Date().getDay();
 const storeKey='moiritm_planner_v1';
+const pwdKey='moiritm_sync_password';
+const choresKey='moiritm_home_chores_v1';
+const defaultChores=['Прибить полку','Разобрать вещи в кладовке','Протереть полки','Починить кран','Разобрать почту'];
+function loadChores(){try{const c=JSON.parse(localStorage.getItem(choresKey)||'null');return Array.isArray(c)&&c.length?c:defaultChores.slice()}catch(e){return defaultChores.slice()}}
+let homeChores=loadChores();
+function saveChores(){try{localStorage.setItem(choresKey,JSON.stringify(homeChores))}catch(e){}}
+function getHomeChoreForDay(day){
+  if(!homeChores.length)return '—';
+  // rotate by day of week so different days get different items
+  return homeChores[day % homeChores.length];
+}
 function load(){try{return JSON.parse(localStorage.getItem(storeKey))||{checks:{},habits:{}}}catch(e){return {checks:{},habits:{}}}}
 let state=load();
 function currentWeekKey(){
@@ -93,16 +121,21 @@ function currentWeekKey(){
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 if(state.habitWeek!==currentWeekKey()){state.habits={};state.habitWeek=currentWeekKey();try{localStorage.setItem(storeKey,JSON.stringify(state))}catch(e){}}
-function save(){try{localStorage.setItem(storeKey,JSON.stringify(state))}catch(e){}}
+function save(){try{localStorage.setItem(storeKey,JSON.stringify(state))}catch(e){} scheduleSync()}
 function dateKey(day=selectedDay){const d=new Date();d.setDate(d.getDate()+((day-d.getDay()+7)%7));return d.toISOString().slice(0,10)}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function taskId(day,i){return dateKey(day)+'_'+i}
 function taskCard(t,i,day){
  let id=taskId(day,i),done=!!state.checks[id],cat=t[2]||'rest';
- return `<div class="card task-tile cat-${esc(cat)}"><div class="task"><button class="check ${done?'done':''}" aria-label="Отметить выполнение" onclick="toggleTask('${id}')"></button><div class="task-main"><div class="task-title ${done?'done':''}">${esc(t[1])}</div><div class="task-meta"><span class="pill">${esc(categoryName(cat))}</span>${t[3]?`<span>${esc(t[3])}</span>`:''}</div></div><div class="task-actions"><div class="time">${esc(t[0])}</div><button class="edit-task" onclick="editTask(${day},${i})">Изменить</button>${t[4]==='custom'?`<button class="edit-task" onclick="deleteCustomTask(${day},${i})">Удалить</button>`:''}</div></div></div>`;
+ let title=t[1];
+ if(title==='Домашние дела'){
+   const chore=getHomeChoreForDay(day);
+   title='Домашние дела: '+chore;
+ }
+ return `<div class="card task-tile cat-${esc(cat)}"><div class="task"><button class="check ${done?'done':''}" aria-label="Отметить задачу" onclick="toggleTask('${id}')"></button><div class="task-main"><div class="task-title ${done?'done':''}">${esc(title)}</div><div class="task-meta"><span class="pill">${esc(categoryName(cat))}</span>${t[3]?`<span>${esc(t[3])}</span>`:''}</div></div><div class="task-actions"><div class="time">${esc(t[0])}</div><button class="edit-task" onclick="editTask(${day},${i})">Изменить</button>${t[4]==='custom'?`<button class="edit-task" onclick="deleteCustomTask(${day},${i})">Удалить</button>`:''}</div></div></div>`;
 }
 function categoryName(c){return ({sport:'Спорт',family:'Семья',home:'Дом',hobby:'Хобби',rest:'Отдых',work:'Работа'})[c]||'План'}
-function persistSchedule(){try{localStorage.setItem('moiritm_custom_schedule_v1',JSON.stringify(schedule))}catch(e){alert('Не удалось сохранить расписание.')}}
+function persistSchedule(){try{localStorage.setItem('moiritm_custom_schedule_v1',JSON.stringify(schedule))}catch(e){alert('Не удалось сохранить расписание.')} scheduleSync()}
 function openTaskEditor(day,index=null){
  const t=index===null?['','','hobby','']:schedule[day].tasks[index];
  document.getElementById('modalRoot').innerHTML=`<div class="modal-backdrop" onclick="if(event.target===this)closeTaskEditor()"><div class="modal"><h2>${index===null?'Новая задача':'Изменить задачу'}</h2><form onsubmit="saveTaskEditor(event,${day},${index===null?'null':index})">
@@ -163,13 +196,236 @@ function renderHabits(){document.getElementById('dayTabs').classList.add('hidden
 function toggleHabit(id){state.habits[id]=!state.habits[id];save();render()}
 function resetHabits(){if(confirm('Сбросить отметки недельного чек-листа?')){state.habits={};state.habitWeek=currentWeekKey();save();render()}}
 function clearDay(){if(confirm('Сбросить отметки выбранного дня?')){schedule[selectedDay].tasks.forEach((t,i)=>delete state.checks[taskId(selectedDay,i)]);save();render()}}
-function renderStats(){document.getElementById('dayTabs').classList.add('hidden');let tasks=Object.keys(state.checks).filter(k=>state.checks[k]&&k.startsWith(dateKey() .slice(0,7)));let doneHabits=Object.values(state.habits).filter(Boolean).length;document.getElementById('heroEyebrow').textContent='БАЛАНС';document.getElementById('heroTitle').textContent='Прогресс — это регулярность';document.getElementById('heroText').textContent='Не сравнивай неделю с идеальным планом. Смотри, что помогает тебе жить в своём ритме.';let html=`<div class="stats"><div class="stat"><div class="big">${tasks.length}</div><div class="label">Выполненных пунктов в этом месяце</div></div><div class="stat"><div class="big">${doneHabits}/${habitGroups.reduce((n,g)=>n+g.items.length,0)}</div><div class="label">Отметок в недельном чек-листе</div></div></div><div class="section-head"><h2>Твои правила</h2></div><div class="card"><div class="list-item"><span>01</span><label>Одно главное занятие в рабочий день<small>Не нужно успевать всё сразу.</small></label></div><div class="list-item"><span>02</span><label>Не наверстывать поздно вечером<small>Пропущенное хобби не превращается в долг.</small></label></div><div class="list-item"><span>03</span><label>Понедельник до 18:00 — семья<small>Личные проекты не ставим в календарь.</small></label></div><div class="list-item"><span>04</span><label>Сон важнее незаконченной задачи<small>Ориентир — отбой около 23:00.</small></label></div></div><div class="button-row"><button class="secondary" onclick="exportData()">Экспортировать данные</button><button class="secondary" onclick="importData()">Импортировать данные</button></div><p class="note">Экспорт сохраняет отметки, недельный чек-лист и всё расписание, включая добавленные и изменённые задачи. Храни файл отдельно; импорт заменит текущие данные.</p>`;document.getElementById('main').innerHTML=html}
-function exportData(){let backup={version:2,exportedAt:new Date().toISOString(),state,schedule};let blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='moiritm-backup.json';a.click();URL.revokeObjectURL(url)}
-function importData(){let input=document.createElement('input');input.type='file';input.accept='.json,application/json';input.onchange=()=>{let f=input.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let d=JSON.parse(r.result);if(!d||typeof d!=='object')throw 0;const restored=d.state||d;if(!restored||typeof restored!=='object'||!restored.checks)throw 0;state={...restored,checks:restored.checks||{},habits:restored.habits||{}};if(d.schedule&&typeof d.schedule==='object'){Object.keys(schedule).forEach(k=>{if(d.schedule[k]&&Array.isArray(d.schedule[k].tasks))schedule[k]=d.schedule[k]});persistSchedule()}save();render();alert('Резервная копия загружена: отметки, чек-листы и расписание.')}catch(e){alert('Не удалось прочитать этот файл.')}};r.readAsText(f)};input.click()}
+function renderStats(){document.getElementById('dayTabs').classList.add('hidden');let tasks=Object.keys(state.checks).filter(k=>state.checks[k]&&k.startsWith(dateKey().slice(0,7)));let doneHabits=Object.values(state.habits).filter(Boolean).length;document.getElementById('heroEyebrow').textContent='БАЛАНС';document.getElementById('heroTitle').textContent='Прогресс — это регулярность';document.getElementById('heroText').textContent='Не сравнивай неделю с идеальным планом. Смотри, что помогает тебе жить в своём ритме.';let html=`<div class="stats"><div class="stat"><div class="big">${tasks.length}</div><div class="label">Выполненных пунктов в этом месяце</div></div><div class="stat"><div class="big">${doneHabits}/${habitGroups.reduce((n,g)=>n+g.items.length,0)}</div><div class="label">Отметок в недельном чек-листе</div></div></div><div class="section-head"><h2>Твои правила</h2></div><div class="card"><div class="list-item"><span>01</span><label>Одно главное занятие в рабочий день<small>Не нужно успевать всё сразу.</small></label></div><div class="list-item"><span>02</span><label>Не наверстывать поздно вечером<small>Пропущенное хобби не превращается в долг.</small></label></div><div class="list-item"><span>03</span><label>Понедельник до 18:00 — семья<small>Личные проекты не ставим в календарь.</small></label></div><div class="list-item"><span>04</span><label>Сон важнее незаконченной задачи<small>Ориентир — отбой около 23:00.</small></label></div></div>`;
+// Home chores editor
+html+=`<div class="section-head"><h2>Домашние дела</h2><span class="sub">Список для пункта после перекуса</span></div><div class="card"><p class="note" style="margin-top:0">Каждый рабочий день после перекуса появляется одно дело из этого списка (по кругу). Редактируй список ниже — по одному делу на строку.</p><div class="field"><textarea id="choresInput" rows="5" placeholder="Прибить полку&#10;Разобрать вещи">${esc(homeChores.join('\n'))}</textarea></div><div class="button-row"><button class="secondary" onclick="saveChoresFromUI()">Сохранить список дел</button></div></div>`;
+// Sync section
+const pwd=getPassword();
+html+=`<div class="section-head"><h2>Облачная синхронизация</h2><span class="sub" id="syncStatusLabel">${syncStatusText()}</span></div><div class="sync-box"><div class="field"><label>Пароль синхронизации</label><input id="syncPwdInput" type="password" autocomplete="off" value="${esc(pwd)}" placeholder="Придумай общий пароль для устройств"></div><div class="button-row"><button class="action" onclick="savePasswordFromUI()">Сохранить пароль</button><button class="secondary" onclick="testSync()">Проверить подключение</button></div><p class="note">Один и тот же пароль вводи на всех устройствах. Данные хранятся в Cloudflare Worker. При ошибке локальные данные не удаляются.</p><div class="sync-status ${syncStatusClass()}" id="syncStatusInline">${syncStatusText()}</div></div>`;
+html+=`<div class="button-row" style="margin-top:18px"><button class="secondary" onclick="exportData()">Экспортировать данные</button><button class="secondary" onclick="importData()">Импортировать данные</button></div><p class="note">Экспорт сохраняет отметки, недельный чек-лист и всё расписание, включая добавленные и изменённые задачи. Храни файл отдельно; импорт заменит текущие данные.</p>`;
+document.getElementById('main').innerHTML=html}
+function saveChoresFromUI(){
+  const ta=document.getElementById('choresInput');
+  if(!ta)return;
+  homeChores=ta.value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!homeChores.length)homeChores=defaultChores.slice();
+  saveChores();
+  scheduleSync();
+  alert('Список домашних дел сохранён.');
+  render();
+}
+function exportData(){let backup={version:2,exportedAt:new Date().toISOString(),state,schedule,homeChores};let blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='moiritm-backup.json';a.click();URL.revokeObjectURL(url)}
+function importData(){let input=document.createElement('input');input.type='file';input.accept='.json,application/json';input.onchange=()=>{let f=input.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let d=JSON.parse(r.result);if(!d||typeof d!=='object')throw 0;const restored=d.state||d;if(!restored||typeof restored!=='object'||!restored.checks)throw 0;state={...restored,checks:restored.checks||{},habits:restored.habits||{}};if(d.schedule&&typeof d.schedule==='object'){Object.keys(schedule).forEach(k=>{if(d.schedule[k]&&Array.isArray(d.schedule[k].tasks))schedule[k]=d.schedule[k]});persistSchedule()}if(Array.isArray(d.homeChores)&&d.homeChores.length){homeChores=d.homeChores;saveChores()}save();render();alert('Резервная копия загружена: отметки, чек-листы и расписание.')}catch(e){alert('Не удалось прочитать этот файл.')}};r.readAsText(f)};input.click()}
 function setNav(){document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.page===page))}
-function render(){let d=new Date();document.getElementById('todayLabel').innerHTML=`${DAYS[d.getDay()]}<br>${d.toLocaleDateString('ru-RU',{day:'numeric',month:'long'})}`;setNav();if(page==='today')renderToday();else if(page==='week')renderWeek();else if(page==='habits')renderHabits();else renderStats()}
+function render(){let d=new Date();document.getElementById('todayLabel').innerHTML=`${DAYS[d.getDay()]}<br>${d.toLocaleDateString('ru-RU',{day:'numeric',month:'long'})}<div class="sync-status ${syncStatusClass()}" id="topSyncStatus">${syncStatusText()}</div>`;setNav();if(page==='today')renderToday();else if(page==='week')renderWeek();else if(page==='habits')renderHabits();else renderStats()}
 document.querySelectorAll('.nav-btn').forEach(b=>b.addEventListener('click',()=>{page=b.dataset.page;render()}));
 document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{filter=b.dataset.filter;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));render()}));
+
+/* ========== Cloud Sync ========== */
+let syncStatus='unset'; // unset | busy | ok | error
+let syncTimer=null;
+let syncInFlight=false;
+let pendingSync=false;
+let lastLocalChange=0;
+let lastCloudVersion=0;
+
+function getPassword(){try{return localStorage.getItem(pwdKey)||''}catch(e){return ''}}
+function setPassword(p){try{if(p)localStorage.setItem(pwdKey,p);else localStorage.removeItem(pwdKey)}catch(e){}}
+function syncStatusText(){
+  if(syncStatus==='busy')return 'Синхронизация…';
+  if(syncStatus==='ok')return 'Синхронизировано';
+  if(syncStatus==='error')return 'Ошибка синхронизации';
+  return getPassword()?'Готово к синхронизации':'Не настроено';
+}
+function syncStatusClass(){
+  if(syncStatus==='busy')return 'busy';
+  if(syncStatus==='ok')return 'ok';
+  if(syncStatus==='error')return 'err';
+  return '';
+}
+function updateSyncUI(){
+  const t=syncStatusText(),c=syncStatusClass();
+  const el1=document.getElementById('topSyncStatus');
+  if(el1){el1.textContent=t;el1.className='sync-status '+c}
+  const el2=document.getElementById('syncStatusInline');
+  if(el2){el2.textContent=t;el2.className='sync-status '+c}
+  const el3=document.getElementById('syncStatusLabel');
+  if(el3)el3.textContent=t;
+}
+function buildPayload(){
+  return {
+    version:3,
+    updatedAt:new Date().toISOString(),
+    localChangeTs:lastLocalChange||Date.now(),
+    state,
+    schedule,
+    homeChores
+  };
+}
+function applyCloudData(data){
+  if(!data||typeof data!=='object')return false;
+  // Protect against empty overwrite
+  const cloudState=data.state;
+  const cloudSchedule=data.schedule;
+  const cloudChores=data.homeChores;
+  let applied=false;
+  if(cloudState&&typeof cloudState==='object'){
+    const hasChecks=cloudState.checks&&Object.keys(cloudState.checks).length>0;
+    const hasHabits=cloudState.habits&&Object.keys(cloudState.habits).length>0;
+    const localHas=Object.keys(state.checks||{}).length>0||Object.keys(state.habits||{}).length>0;
+    if(hasChecks||hasHabits||!localHas){
+      state={
+        checks:cloudState.checks||{},
+        habits:cloudState.habits||{},
+        habitWeek:cloudState.habitWeek||currentWeekKey()
+      };
+      applied=true;
+    }
+  }
+  if(cloudSchedule&&typeof cloudSchedule==='object'){
+    let any=false;
+    Object.keys(schedule).forEach(k=>{
+      if(cloudSchedule[k]&&Array.isArray(cloudSchedule[k].tasks)&&cloudSchedule[k].tasks.length){
+        schedule[k]=cloudSchedule[k];
+        any=true;
+      }
+    });
+    if(any){try{localStorage.setItem('moiritm_custom_schedule_v1',JSON.stringify(schedule))}catch(e){} applied=true}
+  }
+  if(Array.isArray(cloudChores)&&cloudChores.length){
+    homeChores=cloudChores;
+    saveChores();
+    applied=true;
+  }
+  if(applied){
+    try{localStorage.setItem(storeKey,JSON.stringify(state))}catch(e){}
+    if(data.localChangeTs)lastCloudVersion=data.localChangeTs;
+  }
+  return applied;
+}
+async function pullFromCloud(){
+  const pwd=getPassword();
+  if(!pwd){syncStatus='unset';updateSyncUI();return}
+  if(!navigator.onLine){syncStatus='error';updateSyncUI();return}
+  syncStatus='busy';updateSyncUI();
+  try{
+    const res=await fetch(SYNC_URL+'/data',{
+      method:'GET',
+      headers:{'X-Sync-Password':pwd,'Content-Type':'application/json','Accept':'application/json'},
+      cache:'no-store'
+    });
+    if(res.status===401||res.status===403){syncStatus='error';updateSyncUI();return}
+    if(res.status===404||res.status===204){ // no data yet
+      syncStatus='ok';updateSyncUI();
+      // push local so cloud gets initial data
+      pushToCloud(true);
+      return;
+    }
+    if(!res.ok){syncStatus='error';updateSyncUI();return}
+    const data=await res.json().catch(()=>null);
+    if(data&&typeof data==='object'){
+      // Only apply if cloud is not older than our last known or if we have no local change tracking yet
+      const cloudTs=data.localChangeTs||0;
+      if(cloudTs>=lastCloudVersion||!lastLocalChange){
+        applyCloudData(data);
+        lastCloudVersion=cloudTs||Date.now();
+      }
+    }
+    syncStatus='ok';updateSyncUI();
+  }catch(e){
+    syncStatus='error';updateSyncUI();
+  }
+}
+async function pushToCloud(force){
+  const pwd=getPassword();
+  if(!pwd){syncStatus='unset';updateSyncUI();return}
+  if(!navigator.onLine){syncStatus='error';updateSyncUI();return}
+  if(syncInFlight){pendingSync=true;return}
+  syncInFlight=true;
+  syncStatus='busy';updateSyncUI();
+  try{
+    const payload=buildPayload();
+    const res=await fetch(SYNC_URL+'/data',{
+      method:'PUT',
+      headers:{'X-Sync-Password':pwd,'Content-Type':'application/json','Accept':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    if(res.status===401||res.status===403){syncStatus='error';updateSyncUI();syncInFlight=false;return}
+    if(!res.ok){syncStatus='error';updateSyncUI();syncInFlight=false;if(pendingSync){pendingSync=false;setTimeout(()=>pushToCloud(true),800)}return}
+    lastCloudVersion=payload.localChangeTs;
+    syncStatus='ok';updateSyncUI();
+  }catch(e){
+    syncStatus='error';updateSyncUI();
+  }finally{
+    syncInFlight=false;
+    if(pendingSync){pendingSync=false;setTimeout(()=>pushToCloud(true),400)}
+  }
+}
+function scheduleSync(){
+  lastLocalChange=Date.now();
+  if(!getPassword()){syncStatus='unset';updateSyncUI();return}
+  if(syncTimer)clearTimeout(syncTimer);
+  syncTimer=setTimeout(()=>{syncTimer=null;pushToCloud()},650);
+}
+function savePasswordFromUI(){
+  const inp=document.getElementById('syncPwdInput');
+  if(!inp)return;
+  const p=inp.value.trim();
+  setPassword(p);
+  if(p){
+    syncStatus='busy';updateSyncUI();
+    pullFromCloud().then(()=>{if(syncStatus!=='error')pushToCloud(true)});
+  }else{
+    syncStatus='unset';updateSyncUI();
+  }
+  render();
+}
+async function testSync(){
+  const inp=document.getElementById('syncPwdInput');
+  const p=(inp?inp.value.trim():'')||getPassword();
+  if(!p){alert('Сначала введите пароль.');return}
+  setPassword(p);
+  syncStatus='busy';updateSyncUI();
+  try{
+    const res=await fetch(SYNC_URL+'/data',{
+      method:'GET',
+      headers:{'X-Sync-Password':p,'Content-Type':'application/json','Accept':'application/json'},
+      cache:'no-store'
+    });
+    if(res.status===401||res.status===403){
+      syncStatus='error';updateSyncUI();
+      alert('Неверный пароль или доступ запрещён.');
+      return;
+    }
+    if(res.ok||res.status===404||res.status===204){
+      syncStatus='ok';updateSyncUI();
+      alert('Подключение успешно.');
+      // also push current data
+      pushToCloud(true);
+    }else{
+      syncStatus='error';updateSyncUI();
+      alert('Ошибка сервера: '+res.status);
+    }
+  }catch(e){
+    syncStatus='error';updateSyncUI();
+    alert('Нет сети или Worker недоступен.');
+  }
+}
+window.addEventListener('online',()=>{
+  if(getPassword()){
+    pullFromCloud().then(()=>pushToCloud(true));
+  }
+});
+// Initial load sequence
+(async function initSync(){
+  if(getPassword()){
+    await pullFromCloud();
+  }else{
+    syncStatus='unset';
+  }
+  render();
+})();
+// render is called at the end of init; also call once immediately for fast paint
 render();
 </script>
 <script>if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(()=>{});</script></body>
